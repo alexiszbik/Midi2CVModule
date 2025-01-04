@@ -9,8 +9,7 @@ struct FreeClock {
 
     FreeClock(HIDLed* clockLed) : clockLed(clockLed) {}
 
-    void process() {
-        uint32_t length = 100;
+    void process(uint32_t length) {
         uint32_t now = System::GetNow();
         if (now > (length + time)) {
             state = !state;

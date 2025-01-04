@@ -11,9 +11,9 @@
 
 #define RATE_CV_IN CV_6
 
-#define FREE_RATE_KNOB CV_2
-#define SYNC_RATE_KNOB CV_3
-#define CHANCE_KNOB CV_4
+#define FREE_RATE_KNOB CV_3
+#define SYNC_RATE_KNOB CV_4
+#define CHANCE_KNOB CV_2
 
 #define MIN_MIDI_NOTE 36
 
@@ -116,28 +116,28 @@ void HandleMidiMessage(MidiEvent m)
         
     }
     
-    switch(m.type)
-    {
-        case NoteOn:
+    if (m.channel == 0) {
+        switch(m.type)
         {
-            NoteOnEvent p = m.AsNoteOn();
-            hardware.SetLed(p.velocity > 0);
-            setGate(p.velocity > 0);
-            int minNote = MIN_MIDI_NOTE;
-            int range = 5*12;
-            hardware.WriteCvOut(NOTE_CV_OUT, ((float)(fmin(fmax(p.note, minNote), minNote + range) - minNote))/12.f);
+            case NoteOn:
+            {
+                NoteOnEvent p = m.AsNoteOn();
+                hardware.SetLed(p.velocity > 0);
+                setGate(p.velocity > 0);
+                int minNote = MIN_MIDI_NOTE;
+                int range = 5*12;
+                hardware.WriteCvOut(NOTE_CV_OUT, ((float)(fmin(fmax(p.note, minNote), minNote + range) - minNote))/12.f);
+            }
+            break;
+            case NoteOff:
+            {
+                hardware.SetLed(false);
+                setGate(false);
+            }
+            break;
 
+            default: break;
         }
-        break;
-        case NoteOff:
-        {
-            NoteOffEvent p = m.AsNoteOff();
-            hardware.SetLed(false);
-            setGate(false);
-        }
-        break;
-
-        default: break;
     }
 }
 
@@ -173,8 +173,11 @@ int main(void)
             HandleMidiMessage(midi.PopEvent());
         }
 
+        hardware.ProcessAllControls();
+        uint32_t freeLength = (uint32_t)(hardware.GetAdcValue(FREE_RATE_KNOB) * 1000.f);
+
         queuedLed->process();
-        freeClock->process();
+        freeClock->process(10 + freeLength);
 
         System::Delay(1);
     }

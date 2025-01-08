@@ -22,7 +22,9 @@ namespace MIDIClockRes {
 
 class SyncClock : public Clock {
 public:
-    SyncClock(HIDLed* clockLed) : Clock(clockLed) {}
+    SyncClock(HIDLed* clockLed) : Clock(clockLed) {
+        rateCount = rateList.size();
+    }
 
     void setClockState(bool state) {
         this->state = state;
@@ -30,7 +32,7 @@ public:
     }
 
     void tickFromMidi() {
-        int res = MIDIClockRes::Sixteenth;
+        int res = currentRate;
         bool clockState = (tick % res) < (res/2);
         setClockState(clockState && isPlaying);
 
@@ -55,12 +57,9 @@ public:
         isPlaying = false;
     }
 
-
     bool process(float rateKnobValue) {
-        return state;
-    }
-
-    bool getState() {
+        int rateIndex = round(rateKnobValue*(rateCount-1));
+        currentRate = rateList[rateIndex];
         return state;
     }
 
@@ -69,5 +68,23 @@ private:
     uint8_t tick = 0;
     bool isPlaying = false;
     TempoFinder tempoFinder;
+
+    int rateCount;
+
+    uint8_t currentRate = MIDIClockRes::Sixteenth;
+
+    std::vector<uint8_t> rateList = {
+        MIDIClockRes::WholeNote, 
+        MIDIClockRes::HalfNote, 
+        MIDIClockRes::TripletHalfNote, 
+        MIDIClockRes::Quarter, 
+        MIDIClockRes::TripletQuarter, 
+        MIDIClockRes::Eight, 
+        MIDIClockRes::TripletEight, 
+        MIDIClockRes::Sixteenth, 
+        MIDIClockRes::TripletSixteenth, 
+        MIDIClockRes::HalfSixteenth, 
+        MIDIClockRes::TripletHalfSixteenth
+    };
 
 };

@@ -165,10 +165,10 @@ int main(void)
         queuedLed->process();
         bool freeClockState = freeClock->process((uint32_t)freeClockMinLength + freeLength);
 
-        syncClock->process(syncKnobValue);
+        bool syncState = syncClock->process(syncKnobValue);
 
         bool useFreeClock = !toggleClockType.Pressed();
-        setClock(useFreeClock ? freeClockState : syncClock->getState());
+        setClock(useFreeClock ? freeClockState : syncState);
 
         System::Delay(1);
     }

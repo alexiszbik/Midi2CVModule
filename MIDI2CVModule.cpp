@@ -1,10 +1,10 @@
 #include "daisy_patch_sm.h"
 #include "daisysp.h"
 
-#include "TempoFinder.h"
 #include "HIDLed.h"
 #include "QueuedLed.h"
 #include "FreeClock.h"
+#include "SyncClock.h"
 
 #define NOTE_CV_OUT CV_OUT_2
 #define RISER_CV_OUT CV_OUT_1
@@ -20,27 +20,16 @@
 using namespace daisy;
 using namespace patch_sm;
 
-namespace MIDIClockRes {
-    uint8_t WholeNote = 96;
-    uint8_t HalfNote = 48;
-    uint8_t TripletHalfNote = 32;
-    uint8_t Quarter = 24;
-    uint8_t TripletQuarter = 16;
-    uint8_t Eight = 12;
-    uint8_t TripletEight = 8;
-    uint8_t Sixteenth = 6;
-    uint8_t TripletSixteenth = 4;
-    uint8_t HalfSixteenth = 3;
-    uint8_t TripletHalfSixteenth = 2;
-}
-
 MidiUartHandler midi;
 DaisyPatchSM hardware;
-TempoFinder tempoFinder;
 
-Pin toggleClockType = hardware.D10;
-Pin toggleNoTriplets = hardware.D9;
-Pin toggleRise = hardware.D8;
+Pin toggleClockTypePin = hardware.D10;
+Pin toggleNoTripletsPin = hardware.D9;
+Pin toggleRisePin = hardware.D8;
+
+Switch toggleClockType;
+Switch toggleNoTriplets;
+Switch toggleRise;
 
 HIDLed ledRise = HIDLed(hardware.D6);
 HIDLed ledFreeClock = HIDLed(hardware.D1);
@@ -50,9 +39,12 @@ HIDLed ledNotes = HIDLed(hardware.D7);
 
 QueuedLed* queuedLed;
 FreeClock* freeClock;
+SyncClock* syncClock;
 
-uint8_t tick = 0;
-bool isPlaying = false;
+
+
+const float freeClockMinLength = 10;
+const float freeClockMaxLength = 2000;
 
 void InitMidi()
 {
@@ -61,30 +53,13 @@ void InitMidi()
     midi.Init(midi_config);
 }
 
-void setSyncClock(bool state) {
+void setClock(bool state) {
     dsy_gpio_write(&hardware.gate_out_2, state);
-    ledRateClock.setState(state);
 }
 
 void setGate(bool state) {
     dsy_gpio_write(&hardware.gate_out_1, state);
     ledNotes.setState(state);
-}
-
-void tickFromMidi() {
-    int res = MIDIClockRes::Sixteenth;
-    bool clockState = (tick % res) < (res/2);
-    setSyncClock(clockState && isPlaying);
-
-    if (tick % MIDIClockRes::Quarter == 0) {
-        tempoFinder.tickQuarter();
-    }
-
-    tick++;
-
-    if (tick >= MIDIClockRes::Quarter * 4) {
-        tick = 0;
-    }   
 }
 
 void HandleMidiMessage(MidiEvent m)
@@ -98,17 +73,15 @@ void HandleMidiMessage(MidiEvent m)
     if (m.type == SystemRealTime) {
         switch (m.srt_type) {
             case TimingClock :
-                tickFromMidi();
+                syncClock->tickFromMidi();
             break;
             case Start : {
-                tick = 0;
-                isPlaying = true;
+                syncClock->Start();
             }
             break;
             case Stop :  {
-                setSyncClock(false);
                 setGate(false);
-                isPlaying = false;
+                syncClock->Stop();
             }
             break;
             default : break;
@@ -146,6 +119,7 @@ int main(void)
     hardware.Init();
     queuedLed = new QueuedLed(&ledMIDI);
     freeClock = new FreeClock(&ledFreeClock);
+    syncClock = new SyncClock(&ledRateClock);
 
     InitMidi();
     
@@ -157,6 +131,12 @@ int main(void)
         led->setState(true);
     }
 
+    toggleClockType.Init(toggleClockTypePin);
+    toggleNoTriplets.Init(toggleNoTripletsPin);
+    toggleRise.Init(toggleRisePin);
+
+    auto toggles = {&toggleClockType, &toggleNoTriplets, &toggleRise};
+
     System::Delay(1000);
 
     for (auto led : allLeds) {
@@ -166,6 +146,9 @@ int main(void)
 
     for(;;)
     {
+        for (auto toggle : toggles) {
+             toggle->Debounce();
+        }
         
         midi.Listen();
         while(midi.HasEvents())
@@ -174,10 +157,18 @@ int main(void)
         }
 
         hardware.ProcessAllControls();
-        uint32_t freeLength = (uint32_t)(hardware.GetAdcValue(FREE_RATE_KNOB) * 1000.f);
+        float freeKnobValue = hardware.GetAdcValue(FREE_RATE_KNOB);
+        float syncKnobValue = hardware.GetAdcValue(SYNC_RATE_KNOB);
+
+        uint32_t freeLength = (uint32_t)(freeKnobValue*freeKnobValue*freeKnobValue * freeClockMaxLength);
 
         queuedLed->process();
-        freeClock->process(10 + freeLength);
+        bool freeClockState = freeClock->process((uint32_t)freeClockMinLength + freeLength);
+
+        syncClock->process(syncKnobValue);
+
+        bool useFreeClock = !toggleClockType.Pressed();
+        setClock(useFreeClock ? freeClockState : syncClock->getState());
 
         System::Delay(1);
     }

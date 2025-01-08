@@ -3,24 +3,23 @@
 #include "daisy.h"
 using namespace daisy;
 
-#include "HIDLed.h"
+#include "Clock.h"
 
-struct FreeClock {
+class FreeClock : public Clock {
+public:
+    FreeClock(HIDLed* clockLed) : Clock(clockLed) {}
 
-    FreeClock(HIDLed* clockLed) : clockLed(clockLed) {}
-
-    void process(uint32_t length) {
+    bool process(uint32_t length) {
         uint32_t now = System::GetNow();
         if (now > (length + time)) {
             state = !state;
             clockLed->setState(state);
             time = now;
         }
+        return state;
     }
 
 private:
-    HIDLed* clockLed;
-    bool state = false;
     uint32_t time = System::GetNow();
 
 };

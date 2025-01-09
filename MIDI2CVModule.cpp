@@ -7,6 +7,9 @@
 #include "SyncClock.h"
 #include "Riser.h"
 
+//Calibration
+#define NOTE_CV_OUT_ADC_MULTIPLIER 1.024065f
+
 #define NOTE_CV_OUT CV_OUT_2
 #define RISER_CV_OUT CV_OUT_1
 
@@ -17,6 +20,9 @@
 #define CHANCE_KNOB CV_2
 
 #define MIN_MIDI_NOTE 36
+
+#define MIDI_CHANNEL_MUTE 13
+#define MUTE_NOTE 60
 
 using namespace daisy;
 using namespace patch_sm;
@@ -43,10 +49,8 @@ FreeClock* freeClock;
 SyncClock* syncClock;
 Riser* riser;
 
-const float freeClockMinLength = 10;
-const float freeClockMaxLength = 2000;
-
 bool clockState = false;
+bool mute = false;
 
 void InitMidi()
 {
@@ -95,38 +99,43 @@ void HandleMidiMessage(MidiEvent m)
             break;
             default : break;
         }
-        
     }
-    
-    if (m.channel == 0) {
-        switch(m.type)
+
+    switch(m.type)
+    {
+        case NoteOn:
         {
-            case NoteOn:
-            {
-                NoteOnEvent p = m.AsNoteOn();
+            NoteOnEvent p = m.AsNoteOn();
+            if (m.channel == 0) {
                 hardware.SetLed(p.velocity > 0);
                 setGate(p.velocity > 0);
                 int minNote = MIN_MIDI_NOTE;
                 int range = 5*12;
                 float volt = ((float)(fmin(fmax(p.note, minNote), minNote + range) - minNote))/12.f;
-                hardware.WriteCvOut(NOTE_CV_OUT,volt*1.024065f);
+                hardware.WriteCvOut(NOTE_CV_OUT,volt*NOTE_CV_OUT_ADC_MULTIPLIER);
+            } else if (m.channel == MIDI_CHANNEL_MUTE - 1) {
+                mute = p.velocity > 0;
             }
-            break;
-            case NoteOff:
-            {
+        }
+        break;
+        case NoteOff:
+        {
+            if (m.channel == 0) {
                 hardware.SetLed(false);
                 setGate(false);
+            } else if (m.channel == MIDI_CHANNEL_MUTE - 1) {
+                mute = false;
             }
-            break;
-
-            default: break;
         }
+        break;
+        default: break;
     }
 }
 
 int main(void)
 {
     hardware.Init();
+
     queuedLed = new QueuedLed(&ledMIDI);
     freeClock = new FreeClock(&ledFreeClock);
     syncClock = new SyncClock(&ledRateClock);
@@ -170,17 +179,18 @@ int main(void)
         hardware.ProcessAllControls();
         float freeKnobValue = hardware.GetAdcValue(FREE_RATE_KNOB);
         float syncKnobValue = hardware.GetAdcValue(SYNC_RATE_KNOB);
+
+        float rateCV = hardware.GetAdcValue(RATE_CV_IN);
+
         float chanceKnobValue = hardware.GetAdcValue(CHANCE_KNOB);
 
-        uint32_t freeLength = (uint32_t)(freeKnobValue*freeKnobValue*freeKnobValue * freeClockMaxLength);
-
         queuedLed->process();
-        bool freeClockState = freeClock->process((uint32_t)freeClockMinLength + freeLength);
+        bool freeClockState = freeClock->process(freeKnobValue - rateCV);
 
-        bool syncState = syncClock->process(syncKnobValue, !toggleNoTriplets.Pressed());
+        bool syncState = syncClock->process(syncKnobValue - rateCV, !toggleNoTriplets.Pressed());
 
         bool useFreeClock = !toggleClockType.Pressed();
-        setClock(useFreeClock ? freeClockState : syncState, chanceKnobValue);
+        setClock((useFreeClock ? freeClockState : syncState) && !mute, chanceKnobValue);
 
         float riserValue = riser->process(!toggleRise.Pressed(), syncClock->getTempo());
 

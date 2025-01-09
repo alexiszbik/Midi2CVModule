@@ -58,12 +58,15 @@ public:
         isPlaying = false;
     }
 
-    bool process(float rateKnobValue, bool useTriplets) {
+    bool process(float knobValue, bool useTriplets) {
+
+        knobValue = fmax(fmin(1.f - knobValue, 1.f), 0.f);
+
         if (useTriplets) {
-            int rateIndex = round(rateKnobValue*(rateCount-1));
+            int rateIndex = round(knobValue*(rateCount-1));
             currentRate = rateList[rateIndex];
         } else {
-            int rateIndex = round(rateKnobValue*(rateCountNoTriplets-1));
+            int rateIndex = round(knobValue*(rateCountNoTriplets-1));
             currentRate = rateListNoTriplets[rateIndex];
         }
         

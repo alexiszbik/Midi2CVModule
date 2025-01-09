@@ -70,6 +70,10 @@ public:
         return state;
     }
 
+    float getTempo() {
+        return tempoFinder.getCurrentTempo();
+    }
+
 private:
     bool state = false;
     uint8_t tick = 0;

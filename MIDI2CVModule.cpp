@@ -5,6 +5,7 @@
 #include "QueuedLed.h"
 #include "FreeClock.h"
 #include "SyncClock.h"
+#include "Riser.h"
 
 #define NOTE_CV_OUT CV_OUT_2
 #define RISER_CV_OUT CV_OUT_1
@@ -40,6 +41,7 @@ HIDLed ledNotes = HIDLed(hardware.D7);
 QueuedLed* queuedLed;
 FreeClock* freeClock;
 SyncClock* syncClock;
+Riser* riser;
 
 const float freeClockMinLength = 10;
 const float freeClockMaxLength = 2000;
@@ -128,6 +130,7 @@ int main(void)
     queuedLed = new QueuedLed(&ledMIDI);
     freeClock = new FreeClock(&ledFreeClock);
     syncClock = new SyncClock(&ledRateClock);
+    riser = new Riser(&ledRise);
 
     InitMidi();
     
@@ -178,6 +181,8 @@ int main(void)
 
         bool useFreeClock = !toggleClockType.Pressed();
         setClock(useFreeClock ? freeClockState : syncState, chanceKnobValue);
+
+        riser->process(!toggleRise.Pressed(), syncClock->getTempo());
 
         //System::Delay(1);
     }

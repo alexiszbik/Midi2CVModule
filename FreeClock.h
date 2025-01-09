@@ -12,7 +12,7 @@ public:
     bool process(float knobValue) {
         knobValue = fmax(0, knobValue);
 
-        uint32_t length = (uint32_t)(knobValue*knobValue*knobValue * maxLength);
+        uint32_t length = (uint32_t)(knobValue*knobValue*knobValue * (maxLength - minLength));
         length = length + (uint32_t)minLength;
         uint32_t now = System::GetNow();
         if (now > (length + time)) {
@@ -24,7 +24,7 @@ public:
     }
 
 private:
-    const float minLength = 10;
+    const float minLength = 5;
     const float maxLength = 2000;
 
     uint32_t time = System::GetNow();

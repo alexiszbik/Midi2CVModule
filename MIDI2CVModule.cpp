@@ -182,7 +182,9 @@ int main(void)
         bool useFreeClock = !toggleClockType.Pressed();
         setClock(useFreeClock ? freeClockState : syncState, chanceKnobValue);
 
-        riser->process(!toggleRise.Pressed(), syncClock->getTempo());
+        float riserValue = riser->process(!toggleRise.Pressed(), syncClock->getTempo());
+
+        hardware.WriteCvOut(RISER_CV_OUT,fmin(riserValue * 5.f, 5.0f));
 
         //System::Delay(1);
     }

@@ -24,6 +24,7 @@ class SyncClock : public Clock {
 public:
     SyncClock(HIDLed* clockLed) : Clock(clockLed) {
         rateCount = rateList.size();
+        rateCountNoTriplets = rateListNoTriplets.size();
     }
 
     void setClockState(bool state) {
@@ -57,9 +58,15 @@ public:
         isPlaying = false;
     }
 
-    bool process(float rateKnobValue) {
-        int rateIndex = round(rateKnobValue*(rateCount-1));
-        currentRate = rateList[rateIndex];
+    bool process(float rateKnobValue, bool useTriplets) {
+        if (useTriplets) {
+            int rateIndex = round(rateKnobValue*(rateCount-1));
+            currentRate = rateList[rateIndex];
+        } else {
+            int rateIndex = round(rateKnobValue*(rateCountNoTriplets-1));
+            currentRate = rateListNoTriplets[rateIndex];
+        }
+        
         return state;
     }
 
@@ -70,6 +77,7 @@ private:
     TempoFinder tempoFinder;
 
     int rateCount;
+    int rateCountNoTriplets;
 
     uint8_t currentRate = MIDIClockRes::Sixteenth;
 
@@ -85,6 +93,15 @@ private:
         MIDIClockRes::TripletSixteenth, 
         MIDIClockRes::HalfSixteenth, 
         MIDIClockRes::TripletHalfSixteenth
+    };
+    
+    std::vector<uint8_t> rateListNoTriplets = {
+        MIDIClockRes::WholeNote, 
+        MIDIClockRes::HalfNote, 
+        MIDIClockRes::Quarter, 
+        MIDIClockRes::Eight, 
+        MIDIClockRes::Sixteenth, 
+        MIDIClockRes::HalfSixteenth, 
     };
 
 };

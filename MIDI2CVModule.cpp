@@ -41,10 +41,10 @@ QueuedLed* queuedLed;
 FreeClock* freeClock;
 SyncClock* syncClock;
 
-
-
 const float freeClockMinLength = 10;
 const float freeClockMaxLength = 2000;
+
+bool clockState = false;
 
 void InitMidi()
 {
@@ -53,8 +53,15 @@ void InitMidi()
     midi.Init(midi_config);
 }
 
-void setClock(bool state) {
-    dsy_gpio_write(&hardware.gate_out_2, state);
+void setClock(bool state, float chance) {
+    if (state != clockState) {
+        float randValue = (float)rand() / (float)RAND_MAX;
+        randValue *= 0.9f;
+        if (chance >= randValue) {
+            dsy_gpio_write(&hardware.gate_out_2, state);
+        }
+        clockState = state;
+    }
 }
 
 void setGate(bool state) {
@@ -99,7 +106,8 @@ void HandleMidiMessage(MidiEvent m)
                 setGate(p.velocity > 0);
                 int minNote = MIN_MIDI_NOTE;
                 int range = 5*12;
-                hardware.WriteCvOut(NOTE_CV_OUT, ((float)(fmin(fmax(p.note, minNote), minNote + range) - minNote))/12.f);
+                float volt = ((float)(fmin(fmax(p.note, minNote), minNote + range) - minNote))/12.f;
+                hardware.WriteCvOut(NOTE_CV_OUT,volt*1.024065f);
             }
             break;
             case NoteOff:
@@ -159,17 +167,18 @@ int main(void)
         hardware.ProcessAllControls();
         float freeKnobValue = hardware.GetAdcValue(FREE_RATE_KNOB);
         float syncKnobValue = hardware.GetAdcValue(SYNC_RATE_KNOB);
+        float chanceKnobValue = hardware.GetAdcValue(CHANCE_KNOB);
 
         uint32_t freeLength = (uint32_t)(freeKnobValue*freeKnobValue*freeKnobValue * freeClockMaxLength);
 
         queuedLed->process();
         bool freeClockState = freeClock->process((uint32_t)freeClockMinLength + freeLength);
 
-        bool syncState = syncClock->process(syncKnobValue);
+        bool syncState = syncClock->process(syncKnobValue, !toggleNoTriplets.Pressed());
 
         bool useFreeClock = !toggleClockType.Pressed();
-        setClock(useFreeClock ? freeClockState : syncState);
+        setClock(useFreeClock ? freeClockState : syncState, chanceKnobValue);
 
-        System::Delay(1);
+        //System::Delay(1);
     }
 }

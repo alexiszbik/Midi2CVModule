@@ -64,14 +64,16 @@ void setClock(bool state, float chance) {
         float randValue = (float)rand() / (float)RAND_MAX;
         randValue *= 0.9f;
         if (chance >= randValue) {
-            dsy_gpio_write(&hardware.gate_out_2, state);
+            //dsy_gpio_write(&hardware.gate_out_2, state);
+            hardware.gate_out_2.Write(state);
         }
         clockState = state;
     }
 }
 
 void setGate(bool state) {
-    dsy_gpio_write(&hardware.gate_out_1, state);
+    //dsy_gpio_write(&hardware.gate_out_1, state);
+    hardware.gate_out_1.Write(state);
     ledNotes.setState(state);
 }
 
@@ -141,8 +143,6 @@ int main(void)
     syncClock = new SyncClock(&ledRateClock);
     riser = new Riser(&ledRise);
 
-    InitMidi();
-    
     System::Delay(100);
 
     auto allLeds = {&ledRise, &ledFreeClock, &ledRateClock, &ledMIDI, &ledNotes};
@@ -157,7 +157,9 @@ int main(void)
 
     auto toggles = {&toggleClockType, &toggleNoTriplets, &toggleRise};
 
-    System::Delay(1000);
+    System::Delay(2500);
+
+    InitMidi();
 
     for (auto led : allLeds) {
         led->setState(false);

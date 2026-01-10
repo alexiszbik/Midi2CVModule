@@ -1,5 +1,6 @@
 #pragma once 
 
+#include <stdint.h>
 #include "daisy.h"
 using namespace daisy;
 

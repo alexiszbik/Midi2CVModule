@@ -16,6 +16,7 @@
 #define RATE_CV_IN CV_6
 
 #define FREE_RATE_KNOB CV_3
+#define GROOVE_KNOB ADC_10
 #define SYNC_RATE_KNOB CV_4
 #define CHANCE_KNOB CV_2
 
@@ -181,6 +182,7 @@ int main(void)
         hardware.ProcessAllControls();
         float freeKnobValue = hardware.GetAdcValue(FREE_RATE_KNOB);
         float syncKnobValue = hardware.GetAdcValue(SYNC_RATE_KNOB);
+        float grooveValue = hardware.GetAdcValue(GROOVE_KNOB);
 
         float rateCV = hardware.GetAdcValue(RATE_CV_IN);
 
@@ -189,7 +191,7 @@ int main(void)
         queuedLed->process();
         bool freeClockState = freeClock->process(freeKnobValue - rateCV);
 
-        bool syncState = syncClock->process(syncKnobValue - rateCV, !toggleNoTriplets.Pressed());
+        bool syncState = syncClock->process(syncKnobValue - rateCV, grooveValue, !toggleNoTriplets.Pressed());
 
         bool useFreeClock = !toggleClockType.Pressed();
         setClock((useFreeClock ? freeClockState : syncState) && !mute, chanceKnobValue);

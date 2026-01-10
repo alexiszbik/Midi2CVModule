@@ -1,5 +1,6 @@
 #pragma once 
 
+#include <math.h>
 #include "daisy.h"
 using namespace daisy;
 
@@ -7,13 +8,15 @@ using namespace daisy;
 
 class TempoFinder {
 public:
-    void tickQuarter() {
+    void tickSixteenth() {
         uint32_t now = System::GetNow();
         uint32_t delta = now - lastTime;
         lastTime = now;
 
-        double quarterTime = ((double)delta / 1000.);
-        double newTempo = 60.0/quarterTime;
+        double sxTime = ((double)delta / 1000.);
+        double newTempo = 60.0/(sxTime*4.0);
+
+        newTempo = fmax(fmin(newTempo, 200.0), 30.0);
 
         tempoList.push_back(newTempo);
 

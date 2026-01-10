@@ -5,13 +5,15 @@
 #include "QueuedLed.h"
 #include "FreeClock.h"
 #include "SyncClock.h"
-#include "Riser.h"
+
+const int midiChannel = 1 - 1;
+const int ccNumber = 14 - 1;
 
 //Calibration
 #define NOTE_CV_OUT_ADC_MULTIPLIER 1.024065f
 
 #define NOTE_CV_OUT CV_OUT_2
-#define RISER_CV_OUT CV_OUT_1
+#define EXTRA_CV_OUT CV_OUT_1
 
 #define RATE_CV_IN CV_6
 
@@ -33,22 +35,25 @@ DaisyPatchSM hardware;
 
 Pin toggleClockTypePin = hardware.D10;
 Pin toggleNoTripletsPin = hardware.D9;
-Pin toggleRisePin = hardware.D8;
+Pin extraCVPin = hardware.D8;
 
 Switch toggleClockType;
 Switch toggleNoTriplets;
-Switch toggleRise;
+Switch extraCVModeSw;
 
-HIDLed ledRise = HIDLed(hardware.D6);
+bool extraCVIsRandom = false;
+
 HIDLed ledFreeClock = HIDLed(hardware.D1);
 HIDLed ledRateClock = HIDLed(hardware.D5);
 HIDLed ledMIDI = HIDLed(hardware.D4);
+HIDLed ledExtra = HIDLed(hardware.D6);
 HIDLed ledNotes = HIDLed(hardware.D7);
 
-QueuedLed* queuedLed;
+QueuedLed* queuedLedMIDI;
+QueuedLed* queuedLedExtra;
+
 FreeClock* freeClock;
 SyncClock* syncClock;
-Riser* riser;
 
 bool clockState = false;
 bool mute = false;
@@ -65,15 +70,20 @@ void setClock(bool state, float chance) {
         float randValue = (float)rand() / (float)RAND_MAX;
         randValue *= 0.9f;
         if (chance >= randValue) {
-            //dsy_gpio_write(&hardware.gate_out_2, state);
             hardware.gate_out_2.Write(state);
+            
+            if (extraCVIsRandom && state) {
+                float randomValue = rand() % 1000;
+                randomValue = randomValue / 1000.f;
+                hardware.WriteCvOut(EXTRA_CV_OUT, randomValue * 5.f);
+                queuedLedExtra->setOn();
+            }
         }
         clockState = state;
     }
 }
 
 void setGate(bool state) {
-    //dsy_gpio_write(&hardware.gate_out_1, state);
     hardware.gate_out_1.Write(state);
     ledNotes.setState(state);
 }
@@ -84,7 +94,7 @@ void HandleMidiMessage(MidiEvent m)
         return;
     }
 
-    queuedLed->setOn();
+    queuedLedMIDI->setOn();
 
     if (m.type == SystemRealTime) {
         switch (m.srt_type) {
@@ -109,7 +119,7 @@ void HandleMidiMessage(MidiEvent m)
         case NoteOn:
         {
             NoteOnEvent p = m.AsNoteOn();
-            if (m.channel == 0) {
+            if (m.channel == midiChannel) {
                 hardware.SetLed(p.velocity > 0);
                 setGate(p.velocity > 0);
                 int minNote = MIN_MIDI_NOTE;
@@ -123,12 +133,21 @@ void HandleMidiMessage(MidiEvent m)
         break;
         case NoteOff:
         {
-            if (m.channel == 0) {
+            if (m.channel == midiChannel) {
                 hardware.SetLed(false);
                 setGate(false);
             } else if (m.channel == MIDI_CHANNEL_MUTE - 1) {
                 mute = false;
             }
+        }
+        break;
+        case ControlChange:
+        {
+            ControlChangeEvent p = m.AsControlChange();
+            if (m.channel == midiChannel && p.control_number == ccNumber && extraCVIsRandom == false) {
+                hardware.WriteCvOut(EXTRA_CV_OUT, (p.value / 127.f) * 5.f);
+                queuedLedExtra->setOn();
+            } 
         }
         break;
         default: break;
@@ -139,14 +158,14 @@ int main(void)
 {
     hardware.Init();
 
-    queuedLed = new QueuedLed(&ledMIDI);
+    queuedLedMIDI = new QueuedLed(&ledMIDI);
+    queuedLedExtra = new QueuedLed(&ledExtra);
     freeClock = new FreeClock(&ledFreeClock);
     syncClock = new SyncClock(&ledRateClock);
-    riser = new Riser(&ledRise);
 
     System::Delay(100);
 
-    auto allLeds = {&ledRise, &ledFreeClock, &ledRateClock, &ledMIDI, &ledNotes};
+    auto allLeds = {&ledExtra, &ledFreeClock, &ledRateClock, &ledMIDI, &ledNotes};
 
     for (auto led : allLeds) {
         led->setState(true);
@@ -154,9 +173,9 @@ int main(void)
 
     toggleClockType.Init(toggleClockTypePin);
     toggleNoTriplets.Init(toggleNoTripletsPin);
-    toggleRise.Init(toggleRisePin);
+    extraCVModeSw.Init(extraCVPin);
 
-    auto toggles = {&toggleClockType, &toggleNoTriplets, &toggleRise};
+    auto toggles = {&toggleClockType, &toggleNoTriplets, &extraCVModeSw};
 
     System::Delay(2500);
 
@@ -188,7 +207,8 @@ int main(void)
 
         float chanceKnobValue = hardware.GetAdcValue(CHANCE_KNOB);
 
-        queuedLed->process();
+        queuedLedMIDI->process();
+        queuedLedExtra->process();
         bool freeClockState = freeClock->process(freeKnobValue - rateCV);
 
         bool syncState = syncClock->process(syncKnobValue - rateCV, grooveValue, !toggleNoTriplets.Pressed());
@@ -196,10 +216,7 @@ int main(void)
         bool useFreeClock = !toggleClockType.Pressed();
         setClock((useFreeClock ? freeClockState : syncState) && !mute, chanceKnobValue);
 
-        float riserValue = riser->process(!toggleRise.Pressed(), syncClock->getTempo());
-
-        hardware.WriteCvOut(RISER_CV_OUT,fmin(riserValue * 5.f, 5.0f));
-
+        extraCVIsRandom = extraCVModeSw.Pressed();
         //System::Delay(1);
     }
 }

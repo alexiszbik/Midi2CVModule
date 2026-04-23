@@ -80,12 +80,3 @@ Whole, Half, Quarter, Eighth, Sixteenth, Half-Sixteenth
 | D6 | Extra CV activity |
 | D7 | Note gate |
 
-## Build
-
-Requires the [libDaisy](https://github.com/electro-smith/libDaisy) and [DaisySP](https://github.com/electro-smith/DaisySP) libraries.
-
-```bash
-make clean
-make
-make program-dfu
-```

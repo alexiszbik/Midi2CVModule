@@ -1,13 +1,12 @@
 # Project Name
-TARGET = MIDI2CVModule
+TARGET = Midi2CVModule
 
 # Sources
-CPP_SOURCES = MIDI2CVModule.cpp 
+CPP_SOURCES = MIDI2CVModule.cpp
 
 # Library Locations
-LIBDAISY_DIR = ../../libDaisy
-DAISYSP_DIR = ../../DaisySP
-
+LIBDAISY_DIR = libDaisy
+DAISYSP_DIR = DaisySP
 # Core location, and generic makefile.
 SYSTEM_FILES_DIR = $(LIBDAISY_DIR)/core
 include $(SYSTEM_FILES_DIR)/Makefile

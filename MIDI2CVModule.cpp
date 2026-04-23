@@ -6,8 +6,8 @@
 #include "FreeClock.h"
 #include "SyncClock.h"
 
-const int midiChannel = 1 - 1;
-const int ccNumber = 14 - 1;
+const int midiChannel = 2 - 1;
+const int ccNumber = 13;
 
 //Calibration
 #define NOTE_CV_OUT_ADC_MULTIPLIER 1.024065f
@@ -24,8 +24,7 @@ const int ccNumber = 14 - 1;
 
 #define MIN_MIDI_NOTE 36
 
-#define MIDI_CHANNEL_MUTE 13
-#define MUTE_NOTE 60
+#define MUTE_CC 60
 
 using namespace daisy;
 using namespace patch_sm;
@@ -126,8 +125,6 @@ void HandleMidiMessage(MidiEvent m)
                 int range = 5*12;
                 float volt = ((float)(fmin(fmax(p.note, minNote), minNote + range) - minNote))/12.f;
                 hardware.WriteCvOut(NOTE_CV_OUT,volt*NOTE_CV_OUT_ADC_MULTIPLIER);
-            } else if (m.channel == MIDI_CHANNEL_MUTE - 1) {
-                mute = p.velocity > 0;
             }
         }
         break;
@@ -136,8 +133,6 @@ void HandleMidiMessage(MidiEvent m)
             if (m.channel == midiChannel) {
                 hardware.SetLed(false);
                 setGate(false);
-            } else if (m.channel == MIDI_CHANNEL_MUTE - 1) {
-                mute = false;
             }
         }
         break;
@@ -147,7 +142,9 @@ void HandleMidiMessage(MidiEvent m)
             if (m.channel == midiChannel && p.control_number == ccNumber && extraCVIsRandom == false) {
                 hardware.WriteCvOut(EXTRA_CV_OUT, (p.value / 127.f) * 5.f);
                 queuedLedExtra->setOn();
-            } 
+            } else if (m.channel == midiChannel && p.control_number == MUTE_CC) {
+                mute = p.value > 60;
+            }
         }
         break;
         default: break;
@@ -189,7 +186,8 @@ int main(void)
     for(;;)
     {
         for (auto toggle : toggles) {
-             toggle->Debounce();
+            toggle->Debounce();
+            
         }
         
         midi.Listen();

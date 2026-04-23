@@ -187,7 +187,9 @@ int main(void)
     {
         for (auto toggle : toggles) {
             toggle->Debounce();
-            
+            if (mute && (toggle->RisingEdge() || toggle->FallingEdge())) {
+                mute = false;
+            }
         }
         
         midi.Listen();
